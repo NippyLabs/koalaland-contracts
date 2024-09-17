@@ -1,0 +1,17 @@
+[package]
+name = "hi-aptos"
+version = "1.0.0"
+authors = []
+
+[addresses]
+nippy_pool='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
+nippy_math='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
+underlying_tokens_admin='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
+issuer='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
+[dev-addresses]
+
+[dependencies]
+AptosFramework = { git = "https://github.com/aptos-labs/aptos-core.git", rev = "mainnet", subdir = "aptos-move/framework/aptos-framework" }
+
+
+[dev-dependencies]
