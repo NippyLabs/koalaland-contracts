@@ -62,11 +62,19 @@ module nippy_pool::pool_factory {
         pool: address,
         from: address,
         amount: u256,
+        lat_infos: vector<vector<u256>>
     }
     #[event]
     struct RiskScoreSet has store, drop {
         owner: address,
         pool: address,
+    }
+    #[event]
+    struct DebtRepaid has store, drop {
+        sender: address,
+        pool: address,
+        token_ids: vector<u256>,
+        amounts: vector<u256>
     }
     fun init_module(signer: &signer) {
         move_to(signer, State { 
@@ -118,23 +126,24 @@ module nippy_pool::pool_factory {
         });
     }
     public entry fun fill_debt_order(
+        sender: &signer,
         pool: address,
-        sender: address,
         asset_purpose: u8,
         principal_token_address: address,
         debtors: vector<address>,
-        // principal_amount: vector<u256>,
         expiration_timestamps: vector<u256>,
         salts: vector<u256>,
         risk_scores: vector<u8>,
         terms_params: vector<u256>, 
         lat_infos: vector<vector<u256>>
     ){
-        let amount = pool::fill_debt_order(pool, sender, asset_purpose, principal_token_address, debtors, expiration_timestamps, salts, risk_scores, terms_params, lat_infos);
+        let from = signer::address_of(sender);
+        let amount = pool::fill_debt_order(from, pool, asset_purpose, principal_token_address, debtors, expiration_timestamps, salts, risk_scores, terms_params, lat_infos);
         event::emit(DebtOrderFilled{
             pool: pool,
-            from: sender,
-            amount: amount
+            from: from,
+            amount: amount,
+            lat_infos: lat_infos
         });
     }
     public entry fun set_up_tge_for_sot(sender: &signer, pool: address, interest_rate: u32, opening_time: u64, total_cap: u256, min_bid_amount: u256) acquires State{
@@ -186,7 +195,15 @@ module nippy_pool::pool_factory {
                 token_amount: token_amount
         });
     }
-
+    public entry fun repay(sender: &signer, pool: address, token_ids: vector<u256>, amounts: vector<u256>) {
+        pool::repay(sender, pool, token_ids, amounts);
+        event::emit(DebtRepaid{
+            sender: signer::address_of(sender),
+            pool: pool,
+            token_ids: token_ids,
+            amounts: amounts
+        });
+    }
     #[test_only]
     public fun test_init_module(signer: &signer) {
         init_module(signer);
@@ -222,12 +239,29 @@ module nippy_pool::pool_factory {
         return pool::get_capital_reserve(pool)
     }
     #[view]
+    public fun get_reserve(pool: address): u256 {
+        return pool::get_reserve(pool)
+    }
+    #[view]
     public fun get_interest_rate_sot(pool: address): u32 {
         return pool::get_interest_rate_sot(pool)
     }
     #[view]
     public fun get_token_price(pool: address): (u256,u256) {
         return pool::get_token_price(pool)
+    }
+    #[view]
+    public fun get_token_prices(pools: vector<address>): vector<vector<u256>> {
+        let token_prices = vector::empty<vector<u256>>();
+        let i = 0u64;
+        let length = vector::length(&pools);
+        while(i < length) {
+            let (sot_price, jot_price) = pool::get_token_price(*vector::borrow(&pools, i));
+            let token_price: vector<u256> = vector[sot_price,jot_price];
+            vector::push_back(&mut token_prices, token_price);
+            i = i + 1;
+        };
+        return token_prices
     }
     #[view]
     public fun get_sot_capacity(pool: address): u256 {
@@ -244,5 +278,13 @@ module nippy_pool::pool_factory {
     #[view]
     public fun get_total_jot(pool: address): u256 {
         return pool::get_total_jot(pool)
+    }
+    #[view]
+    public fun get_debt(pool: address, token_id: u256): u256 {
+        return pool::get_debt(pool, token_id)
+    }
+    #[view]
+    public fun get_debts(pool: address, token_ids: vector<u256>): vector<u256> {
+        return pool::get_debts(pool, token_ids)
     }
 }

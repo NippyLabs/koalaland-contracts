@@ -1,7 +1,7 @@
 module nippy_pool::generic_logic {
     use nippy_math::math;
     public fun unpack_parameters_from_bytes(parameters: u256): (u256,u256,u256,u256,u256){
-        // 12 + 12 + 4 + 1 + 1 
+        // 32 = 12 + 12 + 4 + 1 + 1 + 2 
         let principal_amount: u256 = parameters >> 160;
         let term_length_in_amortization_units: u256 = (parameters << 96) >> 160;
         let interest_rate: u256 = (parameters << 192) >> 224;

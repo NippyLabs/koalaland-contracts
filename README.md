@@ -52,17 +52,17 @@ Aptos blockchain technology plays a crucial role in powering the Koala RWA platf
 - **Account Resources for Multi-Pool Creation**:  
   Aptos allows the creation of multiple pools using its innovative **account resources** system. This enables Pool Admins to easily manage and track various pools, each with different parameters, under a single account without needing to deploy separate smart contracts for each pool.
 
-- **Fast and Reliable Devnet**:  
-  Aptos provides a **fast, stable Devnet** that supports rapid development and deployment of decentralized applications. The performance of Aptos ensures that transactions related to the creation, management, and liquidation of pools happen efficiently and cost-effectively. The Devnet also allows developers to test new features before deploying them to the mainnet, ensuring robustness and reliability.
+- **Fast and Reliable Devnet/Testnet**:  
+  Aptos provides a **fast, stable Devnet/Testnet** that supports rapid development and deployment of decentralized applications. The performance of Aptos ensures that transactions related to the creation, management, and liquidation of pools happen efficiently and cost-effectively. The Devnet/Testnet also allows developers to test new features before deploying them to the mainnet, ensuring robustness and reliability.
 
 - **Community Support and Ecosystem**:  
   The vibrant and supportive Aptos developer community provides valuable resources, documentation, and tools that accelerate development, allowing the Koala RWA platform to evolve rapidly.
 
-## Aptos devnet deployed address
+## Aptos Testnet deployed address
 | **Item**         | **Details**                                                                 |
 |------------------|------------------------------------------------------------------------------|
-| **Module Address** | `0xa036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7`        |
-| **USD-peg**       | `0x93849753c254e01d324d77bf755c228999ec6d917791a28d0a7b0c7fd923175e`         |
-| **Pool Example**  | `0xd834439e1eb6bfc79bc42c512989d668faa0ec41c0816bdcbda56ac4037b1d17`         |
-| **RPC**           | [https://fullnode.devnet.aptoslabs.com/](https://fullnode.devnet.aptoslabs.com/) |
-| **Faucet URL**    | [https://faucet.devnet.aptoslabs.com/](https://faucet.devnet.aptoslabs.com/)  |
+| **Module Address** | `0x0c25ff16f4bac53ad93930edba398b2db2904faa7146981d7ab563fdd6100819`        |
+| **USD-peg**       | `0xc4d3219d01d6f9c091c949e3d0533d7aece05cf1a2dfa333b5af9e93fd780e1c`         |
+| **Pool Example**  | `0x6235dc1fc91ec3a759ea661cdcbfc0a5666b20017d9171ffa3af4b8bc1963ff3`         |
+| **RPC**           | [https://fullnode.testnet.aptoslabs.com](https://fullnode.testnet.aptoslabs.com) |
+| **Faucet URL**    | [https://faucet.testnet.aptoslabs.com](https://faucet.testnet.aptoslabs.com)  |

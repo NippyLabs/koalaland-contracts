@@ -4,10 +4,10 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-nippy_pool='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
-nippy_math='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
-underlying_tokens_admin='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
-issuer='a036556182b4acb6e4a88f9f329be2bc937417c9194f64213ff66d8ee91dd4d7'
+nippy_pool='0c25ff16f4bac53ad93930edba398b2db2904faa7146981d7ab563fdd6100819'
+nippy_math='0c25ff16f4bac53ad93930edba398b2db2904faa7146981d7ab563fdd6100819'
+underlying_tokens_admin='0c25ff16f4bac53ad93930edba398b2db2904faa7146981d7ab563fdd6100819'
+issuer='0c25ff16f4bac53ad93930edba398b2db2904faa7146981d7ab563fdd6100819'
 [dev-addresses]
 
 [dependencies]

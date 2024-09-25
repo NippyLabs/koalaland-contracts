@@ -46,6 +46,15 @@ module nippy_pool::pool {
         PRICE_DECIMAL
     }
 
+    #[event]
+    struct AssetRepaid has store, drop {
+        pool: address,
+        originator: address,
+        token_id: u256,
+        underlying_currency: address,
+        repay_amount: u256,
+        outstanding_amount: u256,
+    }
     struct RiskScore has key, store, copy, drop {
         days_past_due: u32,
         advance_rate: u32,
@@ -147,7 +156,7 @@ module nippy_pool::pool {
         // accumlated penalty rate index over time
         penalty_chi: u256,
         // last time the rate was accumulated
-        last_updated: u32,
+        last_updated: u64,
         // time start to penalty
         time_start_penalty: u32
     }
@@ -329,26 +338,6 @@ module nippy_pool::pool {
         );
     }
 
-    #[view]
-    public fun get_nft_asset_length(): u64 acquires Storage{
-        vector::length(&borrow_global<Storage>(@nippy_pool).nft_assets)
-    }
-    #[view]
-    public fun get_risk_score_length(): u64 acquires Storage{
-        vector::length(&borrow_global<Storage>(@nippy_pool).risk_scores)
-    }
-    #[view]
-    public fun get_risk_score(index: u64): RiskScore acquires Storage{
-        let risk_scores = borrow_global<Storage>(@nippy_pool).risk_scores;
-        assert!(vector::length(&risk_scores) > index, 2);
-        *vector::borrow(&risk_scores,index)
-    }
-    #[view]
-    public fun get_nft_asset(index: u64): NFTAsset acquires Storage{
-        let nft_assets = borrow_global<Storage>(@nippy_pool).nft_assets;
-        assert!(vector::length(&nft_assets) > index, 2);
-        *vector::borrow(&nft_assets,index)
-    }
     
     public fun get_risk_score_by_idx(risk_scores: vector<RiskScore>, idx: u64): RiskScore {
         let risk_score = RiskScore {
@@ -533,6 +522,7 @@ module nippy_pool::pool {
     }
 
     public fun get_loans_value(
+        pool: address, 
         token_ids: vector<u256>,
         loan_entries: vector<LoanEntry>
     ) :(u256, vector<u256>) acquires Storage{
@@ -543,7 +533,7 @@ module nippy_pool::pool {
         let i = 0u64;
         loop
         {
-            let asset_value = get_expected_loan_value(*vector::borrow<LoanEntry>(&loan_entries,i));
+            let asset_value = get_expected_loan_value(pool,*vector::borrow<LoanEntry>(&loan_entries,i));
             expected_asset_value = expected_asset_value + asset_value;
             vector::push_back(&mut expected_asset_values,asset_value);
 
@@ -620,7 +610,7 @@ module nippy_pool::pool {
         );
         if (what == 1 && rate.chi == 0) {
             rate.chi = ONE;
-            rate.last_updated = (timestamp::now_seconds() as u32);
+            rate.last_updated = timestamp::now_seconds();
             rate.rate_per_second = value;
             return
         };
@@ -631,7 +621,7 @@ module nippy_pool::pool {
         };
         if (what == 2 && rate.penalty_chi == 0){
             rate.penalty_chi = ONE;
-            rate.last_updated = (timestamp::now_seconds() as u32);
+            rate.last_updated = timestamp::now_seconds();
             rate.penalty_rate_per_second = value;
             return
         };
@@ -674,9 +664,9 @@ module nippy_pool::pool {
         }
     }
 
-    fun get_expected_loan_value(loan_entry: LoanEntry): u256 acquires Storage{
+    fun get_expected_loan_value(pool: address,loan_entry: LoanEntry): u256 acquires Storage{
         let loan_param = unpack_params_for_agreement_id(loan_entry);
-        let risk_param = get_risk_score_by_idx(borrow_global<Storage>(@nippy_pool).risk_scores, (loan_entry.risk_score as u64));
+        let risk_param = get_risk_score_by_idx(borrow_global<Storage>(pool).risk_scores, (loan_entry.risk_score as u64));
         (loan_param.principal_amount * (risk_param.advance_rate as u256)) / ONE_HUNDRED_PERCENT
     }
     fun collect_assets(storage: &mut Storage, mapping: &mut Mapping, tge_list: &mut TimeGeneratedEventList, token_ids: vector<u256>, loan_entries: vector<LoanEntry>): u256 {
@@ -705,8 +695,8 @@ module nippy_pool::pool {
         return expected_assets_value
     }
     public (friend) fun fill_debt_order(
-        pool: address,
         sender: address,
+        pool: address,
         asset_purpose: u8,
         principal_token_address: address,
         debtors: vector<address>,
@@ -860,7 +850,7 @@ module nippy_pool::pool {
     }
     fun drip(rate: &mut Rate) {
         let current = timestamp::now_seconds(); 
-        if (current < (rate.last_updated as u64)) return;
+        if (current < rate.last_updated) return;
         let (chi, _): (u256,u256) = compounding(rate.chi, rate.rate_per_second, (rate.last_updated as u256), rate.pie);
         rate.chi = chi;
         let condition: bool = rate.penalty_rate_per_second != 0 && rate.time_start_penalty != 0 && current >= (rate.time_start_penalty as u64);
@@ -869,7 +859,7 @@ module nippy_pool::pool {
             let (penalty_chi, _): (u256,u256) = compounding(rate.penalty_chi,rate.penalty_rate_per_second,last_updated,rate.pie);
             rate.penalty_chi = penalty_chi; 
         };
-        rate.last_updated = (current as u32);
+        rate.last_updated = current;
     }
 
     #[view]
@@ -1108,7 +1098,7 @@ module nippy_pool::pool {
         )
     }
     fun inc_debt(mapping: &mut Mapping, token_id: u256, currency_amount: u256){
-        let current: u32 = (timestamp::now_seconds() as u32); 
+        let current = timestamp::now_seconds(); 
         let loan_rate: u256 = *smart_table::borrow_with_default(& mapping.loan_rates, token_id, &0u256);
         let rate = smart_table::borrow_mut_with_default<u256,Rate>(
             &mut mapping.rates, 
@@ -1201,7 +1191,7 @@ module nippy_pool::pool {
             rate_per_second: 0u256,
             penalty_rate_per_second: 0u256,
             penalty_chi: 0u256,
-            last_updated: 0u32,
+            last_updated: 0u64,
             time_start_penalty: 0u32
         }
     }
@@ -1305,8 +1295,6 @@ module nippy_pool::pool {
         storage.interest_rate_sot = interest_rate_sot;
     }
     fun calc_token_price(storage: &Storage, mapping: &Mapping): (u256, u256){
-        // let storage = borrow_global<Storage>(@nippy_pool);
-        // let mapping = borrow_global<Mapping>(@nippy_pool);
         let sot_token = storage.sot_token;
         let jot_token = storage.jot_token;
         let decimal = math::pow(10,(underlying_token_factory::decimals(storage.underlying_currency) as u256));
@@ -1405,6 +1393,211 @@ module nippy_pool::pool {
         };
 
     }
+    fun debt_with_chi(mapping: &mut Mapping, loan: u256, chi: u256, penalty_chi: u256): u256 {
+        if (penalty_chi == 0) {
+            return generic_logic::to_amount(
+                chi,
+                *smart_table::borrow_with_default(& mapping.pie, loan, &0u256)
+            )
+        };
+        return generic_logic::to_amount(
+            penalty_chi,
+            generic_logic::to_amount(
+                chi,
+                *smart_table::borrow_with_default(& mapping.pie, loan, &0u256)
+            )
+        )
+    }
+    fun dec_debt(mapping: &mut Mapping, token_id: u256, currency_amount: u256) {
+        let loan_rate = *smart_table::borrow_with_default(& mapping.loan_rates, token_id, &0u256);
+        let rate = smart_table::borrow_mut_with_default<u256,Rate>(
+            &mut mapping.rates, 
+            loan_rate,
+            rate_default()
+        );
+        assert!(timestamp::now_seconds() == rate.last_updated, 51);
+
+        let penalty_chi = rate.penalty_chi;
+        if (penalty_chi > 0) {
+            currency_amount = generic_logic::to_pie(penalty_chi, currency_amount);
+        };
+        let pie_amount = generic_logic::to_pie(rate.chi, currency_amount);
+        rate.pie = rate.pie - pie_amount;
+        let pie = smart_table::borrow_mut_with_default<u256,u256>(&mut mapping.pie, token_id, 0u256); 
+        *pie = *pie - pie_amount;
+    }
+    fun decrease_loan(storage: &mut Storage, mapping: &mut Mapping, token_id: u256, amount: u256) {
+        let loan_rate = *smart_table::borrow_with_default(& mapping.loan_rates, token_id, &0u256);
+        assert!(loan_rate >= WRITE_OFF_RATE_GROUP_START, 50);
+        let write_off_group_index = ((loan_rate - WRITE_OFF_RATE_GROUP_START) as u64);
+        let percentage = vector::borrow(&storage.write_off_groups, write_off_group_index).percentage;
+        // make sure percentage < 2 ** 128
+
+        storage.last_nav_update = math::secure_sub(
+            storage.last_nav_update,
+            math::r_mul(
+                amount,
+                (percentage as u256)        
+            )
+        );
+        dec_debt(mapping, token_id, amount);
+    }
+    fun repay_loans_nav(storage: &mut Storage, mapping: &mut Mapping, token_ids: vector<u256>, amounts: vector<u256>):(vector<u256>, vector<u256>) {
+        let nnow = discounting::unique_day_timestamp((timestamp::now_seconds() as u256));
+        let token_ids_length = vector::length(&token_ids);
+        let repay_amounts = vector::empty<u256>();
+        let previous_debts = vector::empty<u256>();
+        let i = 0u64; 
+        while (i < token_ids_length) {
+            let token_id = *vector::borrow(&token_ids, i);
+            let amount = *vector::borrow(&amounts, i);
+
+            accrue(mapping, token_id);
+            if (nnow > storage.last_nav_update) {
+                calc_update_nav(storage,mapping);
+            };
+
+            // In case of successful repayment the latestNAV is decreased by the repaid amount
+            let nft_detail = smart_table::borrow_with_default(&mut mapping.details, token_id, &nft_details_default());
+            let maturity_date = nft_detail.maturity_date;
+            let current_debt = debt(mapping, token_id);
+            if (amount > current_debt) {
+                amount = current_debt;
+            };
+            vector::push_back(&mut repay_amounts, amount);
+            vector::push_back(&mut previous_debts, current_debt);
+            
+            // case 1: repayment of a written-off loan
+            if (is_loan_written_off(mapping, token_id)){
+                decrease_loan(storage,mapping,token_id, amount);
+                continue;
+            };
+            
+            
+            let pre_fv =  (nft_detail.future_value as u256);
+            // in case of partial repayment, compute the fv of the remaining debt and add to the according fv bucket
+            let loan_rate: u256 = *smart_table::borrow_with_default(& mapping.loan_rates, token_id, &0u256);
+            let rate = smart_table::borrow_mut_with_default<u256,Rate>(
+                &mut mapping.rates, 
+                loan_rate,
+                rate_default()
+            );
+
+            let fv_decrease = pre_fv;
+            let fv = 0u256;
+            let debt = current_debt - amount;
+            if (debt != 0){
+                let fv = discounting::calc_future_value(
+                    rate.rate_per_second,
+                    debt,
+                    (maturity_date as u256),
+                    recovery_rate_pd(
+                        storage.risk_scores,
+                        nft_detail.risk,
+                        nft_detail.expiration_timestamp - nft_detail.issuance_block_timestamp
+                    )
+                );
+                fv_decrease = math::secure_sub(pre_fv, fv);
+                let mut_nft_detail = smart_table::borrow_mut_with_default(&mut mapping.details, token_id, nft_details_default());
+                mut_nft_detail.future_value = (fv as u128);
+            };
+
+            // case 2: repayment of a loan before or on maturity date
+            if((maturity_date as u256) >= nnow) {
+                let bucket = smart_table::borrow_mut_with_default(&mut mapping.buckets, (maturity_date as u256), 0u256);
+                *bucket = *bucket - fv_decrease;
+                let discount_decrease = discounting::calc_discount(
+                    storage.discount_rate,
+                    fv_decrease,
+                    nnow,
+                    (maturity_date as u256)
+                );
+                storage.latest_discount = math::secure_sub(storage.latest_discount, discount_decrease);
+                let latest_discount_of_nav_assets = smart_table::borrow_mut_with_default(&mut mapping.latest_discount_of_nav_assets, token_id, 0u256);
+                *latest_discount_of_nav_assets = math::secure_sub(*latest_discount_of_nav_assets, discount_decrease);
+                storage.latest_nav = math::secure_sub(storage.latest_nav, discount_decrease); 
+            } else {
+                storage.overdue_loans = storage.overdue_loans - fv_decrease;
+                let overdue_loans_of_nav_assets = smart_table::borrow_mut_with_default(&mut mapping.overdue_loans_of_nav_assets, token_id, 0u256);
+                *overdue_loans_of_nav_assets = *overdue_loans_of_nav_assets - fv_decrease;
+                storage.latest_nav = math::secure_sub(storage.latest_nav, fv_decrease); 
+            };
+            dec_debt(mapping, token_id, amount);
+            i = i + 1;
+        };
+        return (repay_amounts, previous_debts)
+    }
+    fun repay_loans(storage: &mut Storage, mapping: &mut Mapping, token_ids: vector<u256>, amounts: vector<u256>): (vector<u256>, vector<u256>) {
+        let token_ids_length = vector::length(&token_ids);
+        let last_outstanding_debt = vector::empty<u256>();
+        let i = 0u64;
+        while(i < token_ids_length) {
+            // let (chi, penalty_chi) = 
+            let loan_rate: u256 = *smart_table::borrow_with_default(& mapping.loan_rates, *vector::borrow(&token_ids, i), &0u256);
+            let rate = smart_table::borrow_mut_with_default<u256,Rate>(
+                &mut mapping.rates, 
+                loan_rate,
+                rate_default()
+            );
+            vector::push_back(
+                &mut last_outstanding_debt,
+                debt_with_chi(mapping, *vector::borrow(&token_ids, i), rate.chi, rate.penalty_chi)
+            );
+            i = i + 1;
+        };
+        let (repay_amounts, previous_debts) = repay_loans_nav(storage,mapping, token_ids, amounts);
+        let total_interest_repaid = 0u256;
+        let total_principal_repaid = 0u256;
+        
+        i = 0u64;
+        while(i < token_ids_length) {
+            let interest_amount = *vector::borrow(&previous_debts, i) - *vector::borrow(&last_outstanding_debt, i);
+            let repay_amount = *vector::borrow(&repay_amounts, i);
+            if (repay_amount < interest_amount) {
+                total_interest_repaid = total_interest_repaid + repay_amount;
+            }else{
+                total_interest_repaid = total_interest_repaid + interest_amount;
+                total_interest_repaid = repay_amount - interest_amount;
+            };
+            i = i + 1;
+        };
+        storage.income_reserve = storage.income_reserve + total_interest_repaid;
+        storage.capital_reserve = storage.capital_reserve + total_principal_repaid;
+        return (repay_amounts, previous_debts)
+    }
+    fun do_repay(storage: &mut Storage, mapping: &mut Mapping, from: address, pool: address, token_ids: vector<u256>, amounts: vector<u256>){
+        let total_repaid = 0u256;
+        let (repay_amounts, previous_debts) = repay_loans_nav(storage, mapping, token_ids, amounts);
+        let repay_amounts_length = vector::length(&repay_amounts);
+        let i = 0u64;
+        while (i < repay_amounts_length){
+            let token_id = *vector::borrow(&token_ids, i);
+            let repay_amount = *vector::borrow(&repay_amounts, i);
+            let outstanding_amount = debt(mapping, token_id);
+            // check if repay = debt, remove loan
+            total_repaid = total_repaid + repay_amount;
+            //emit repay event
+            event::emit(AssetRepaid {
+                pool: pool,
+                originator: from,
+                token_id: token_id,
+                underlying_currency: storage.underlying_currency,
+                repay_amount: repay_amount,
+                outstanding_amount: outstanding_amount
+            });
+
+            i = i + 1;
+        };
+        underlying_token_factory::transfer_from(from, pool, (total_repaid as u64), storage.underlying_currency);
+        storage.total_asset_repaid_currency = storage.total_asset_repaid_currency + total_repaid; 
+    }
+    public (friend) fun repay(sender: &signer, pool: address, token_ids: vector<u256>, amounts: vector<u256>) acquires Storage, Mapping{
+        // TODO need to check owner of tokenIds
+        let storage = borrow_global_mut<Storage>(pool);
+        let mapping = borrow_global_mut<Mapping>(pool);
+        do_repay(storage,mapping, signer::address_of(sender), pool, token_ids, amounts);
+        rebase(storage,mapping);
+    }
     fun time_generate_event_default(): TimeGeneratedEvent {
         return TimeGeneratedEvent {
             token: @0x0,
@@ -1443,6 +1636,11 @@ module nippy_pool::pool {
         return storage.capital_reserve
     }
     #[view]
+    public (friend) fun get_reserve(pool: address): u256 acquires Storage{
+        let storage = borrow_global<Storage>(pool);
+        return storage.capital_reserve + storage.income_reserve
+    }
+    #[view]
     public (friend) fun get_interest_rate_sot(pool: address): u32 acquires Storage{
         let storage = borrow_global<Storage>(pool);
         return storage.interest_rate_sot
@@ -1474,5 +1672,25 @@ module nippy_pool::pool {
     public (friend) fun get_total_jot(pool: address): u256 acquires Storage {
         let storage = borrow_global<Storage>(pool);
         return token_factory::supply(storage.jot_token)
+    }
+    #[view]
+    public (friend) fun get_debt(pool: address, token_id: u256): u256 acquires Mapping {
+        let mapping = borrow_global<Mapping>(pool);
+        return debt(mapping, token_id)
+    }
+    #[view]
+    public (friend) fun get_debts(pool: address, token_ids: vector<u256>): vector<u256> acquires Mapping {
+        let debts = vector::empty<u256>();
+        let mapping = borrow_global<Mapping>(pool);
+        let token_ids_length = vector::length(&token_ids);
+        let i = 0u64;
+        while (i < token_ids_length) {
+            vector::push_back(
+                &mut debts,
+                debt(mapping, *vector::borrow(&token_ids, i))
+            );
+            i = i + 1; 
+        };
+        return debts
     }
 }

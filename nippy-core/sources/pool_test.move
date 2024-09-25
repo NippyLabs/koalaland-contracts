@@ -5,6 +5,7 @@ module nippy_pool::pool_tests {
     use std::string::{utf8, String};
     use std::vector;
     use std::bcs;
+
     use std::debug::print; 
 
     use aptos_framework::timestamp;
@@ -134,8 +135,8 @@ module nippy_pool::pool_tests {
         let lat_infos = vector::singleton<vector<u256>>(token_ids);
         // print(&underlying_token_factory::balance_of(@nippy_pool, usdc));
         pool_factory::fill_debt_order(
+            borrower,
             pool1_address,
-            signer::address_of(borrower),
             asset_purpose,
             principal_token_address,
             debtors,
@@ -147,8 +148,8 @@ module nippy_pool::pool_tests {
             lat_infos
         );
         pool_factory::fill_debt_order(
+            borrower,
             pool2_address,
-            signer::address_of(borrower),
             asset_purpose,
             principal_token_address,
             debtors,
@@ -160,8 +161,8 @@ module nippy_pool::pool_tests {
             lat_infos
         );
         pool_factory::fill_debt_order(
+            borrower,
             pool3_address,
-            signer::address_of(borrower),
             asset_purpose,
             principal_token_address,
             debtors,
@@ -182,6 +183,12 @@ module nippy_pool::pool_tests {
         print(&pool_factory::get_current_nav(pool1_address));
         print(&pool_factory::get_current_nav(pool2_address));
         print(&pool_factory::get_current_nav(pool3_address));
+        pool_factory::repay(
+            borrower,
+            pool1_address,
+            token_ids,
+            vector<u256>[10u256 * 1000000u256]
+        );
     }
 
 } 
